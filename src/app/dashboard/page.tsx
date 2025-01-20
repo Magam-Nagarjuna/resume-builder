@@ -1,14 +1,13 @@
-// src/app/dashboard/page.tsx
+
 "use client";
-// src/app/dashboard/page.tsx
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Edit, Briefcase, User, Plus } from 'lucide-react'
-import { auth } from '@/lib/auth'
-import { LoggedInHeader } from '@/components/logged-in-header'
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button'; // Correct path for Button
+import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/auth'; // Correct path for auth
+import { Card, CardContent } from '@/components/ui/card'; // Correct path for Card
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Correct path for Tabs
+import { Edit, Briefcase, User, Plus } from 'lucide-react';
+import { LoggedInHeader } from '@/components/logged-in-header'; // Correct path for LoggedInHeader
 
 const examples = [
   {
@@ -53,37 +52,44 @@ const examples = [
       },
     ],
   },
-]
+];
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
+  const router = useRouter();
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const currentUser = await auth.getCurrentUser()
-      setUser(currentUser)
-    }
+      const currentUser = await auth.getCurrentUser();
+      setUser(currentUser);
+    };
 
-    fetchUser()
-  }, [])
+    fetchUser();
+  }, []);
 
   if (!user) {
-    return null
+    return null;
   }
 
   const handleUseTemplate = () => {
     if (selectedTemplate) {
-      router.push(`/editor/${selectedTemplate}`)
+      router.push(`/editor/${selectedTemplate}`);
     }
-  }
+  };
+
+  const handleLogout = async () => {
+    await auth.logout(); // Call the logout function
+    router.push('/login'); // Redirect to login page after logout
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <LoggedInHeader user={user} />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+        
+
         <Tabs defaultValue="Personal" className="space-y-8">
           <TabsList>
             {examples.map((category) => (
@@ -147,5 +153,5 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
