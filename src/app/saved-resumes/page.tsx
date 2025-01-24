@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { auth } from "@/lib/auth"
 import { Loader2, Eye, Pencil, Trash2 } from "lucide-react"
 import { ResumePreview } from "@/components/resume-preview"
+import { LoggedInHeader } from "@/components/logged-in-header"
 
 export default function SavedResumesPage() {
   const router = useRouter()
@@ -14,6 +15,12 @@ export default function SavedResumesPage() {
   const [savedResumes, setSavedResumes] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [previewResume, setPreviewResume] = useState<any>(null)
+
+  useEffect(() => {
+    if (!auth.isAuthenticated()) {
+      router.push("/login")
+    }
+  }, [router])
 
   useEffect(() => {
     const fetchUserAndResumes = async () => {
@@ -39,7 +46,11 @@ export default function SavedResumesPage() {
   }
 
   const handleEditResume = (id: string) => {
-    router.push(`/editor/${id}`)
+    if (auth.isAuthenticated()) {
+      router.push(`/editor/${id}`)
+    } else {
+      router.push("/login")
+    }
   }
 
   const handleDeleteResume = async (id: string) => {
@@ -74,6 +85,7 @@ export default function SavedResumesPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <LoggedInHeader user={user} />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Saved Resumes</h1>
         {savedResumes.length === 0 ? (
@@ -116,7 +128,13 @@ export default function SavedResumesPage() {
           </div>
         )}
       </main>
-      {previewResume && <ResumePreview resume={previewResume} onClose={() => setPreviewResume(null)} />}
+      {previewResume && (
+        <ResumePreview
+          resume={previewResume}
+          onClose={() => setPreviewResume(null)}
+          uploadedImage={previewResume.content.uploadedImage}
+        />
+      )}
     </div>
   )
 }
