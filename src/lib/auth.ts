@@ -11,8 +11,13 @@ const users: User[] = [
     savedResumes: [],
     createdAt: new Date().toISOString(),
     lastLogin: new Date().toISOString(),
+    securityQuestion: "What is your mother's maiden name?",
+    securityAnswer: "Smith",
   },
 ]
+
+// Simulated OTP storage
+const otpStorage: { [email: string]: { otp: string; expiry: number } } = {}
 
 export const auth = {
   signup: async (name: string, email: string, password: string) => {
@@ -25,11 +30,13 @@ export const auth = {
       id: String(users.length + 1),
       name,
       email,
-      password, // This will be stored in the users array but not in sessionStorage
+      password,
       image: "/placeholder.svg",
       savedResumes: [],
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
+      securityQuestion: "",
+      securityAnswer: "",
     }
 
     users.push(newUser)
@@ -49,22 +56,6 @@ export const auth = {
       return { success: true, user: userWithoutPassword }
     }
     return { success: false, error: "Invalid email or password" }
-  },
-
-  loginWithOAuth: async (provider: "google" | "linkedin" | "github") => {
-    // Simulate OAuth login
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    const mockUser = users[0] || {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      image: "/placeholder.svg",
-      savedResumes: [],
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-    }
-    sessionStorage.setItem("user", JSON.stringify(mockUser))
-    return { success: true, user: mockUser }
   },
 
   logout: async () => {
@@ -114,6 +105,76 @@ export const auth = {
       }
       sessionStorage.setItem("user", JSON.stringify(user))
     }
+  },
+
+  sendPasswordResetOTP: async (email: string): Promise<{ success: boolean; error?: string }> => {
+    const user = users.find((u) => u.email === email)
+    if (user) {
+      // Generate a random 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString()
+      // Set OTP expiry to 10 minutes from now
+      const expiry = Date.now() + 10 * 60 * 1000
+
+      // Store OTP (in a real application, this would be securely stored)
+      otpStorage[email] = { otp, expiry }
+
+      // Simulate sending OTP via email
+      console.log(`OTP for ${email}: ${otp}`)
+
+      return { success: true }
+    }
+    return { success: false, error: "User not found" }
+  },
+
+  verifyOTP: async (email: string, otp: string): Promise<{ success: boolean; error?: string }> => {
+    const storedOTP = otpStorage[email]
+    if (storedOTP && storedOTP.otp === otp && Date.now() < storedOTP.expiry) {
+      // Clear the OTP after successful verification
+      delete otpStorage[email]
+      return { success: true }
+    }
+    return { success: false, error: "Invalid or expired OTP" }
+  },
+
+  getSecurityQuestion: async (email: string): Promise<{ success: boolean; question?: string; error?: string }> => {
+    const user = users.find((u) => u.email === email)
+    if (user && user.securityQuestion) {
+      return { success: true, question: user.securityQuestion }
+    }
+    return { success: false, error: "User not found or security question not set" }
+  },
+
+  verifySecurityAnswer: async (email: string, answer: string): Promise<{ success: boolean; error?: string }> => {
+    const user = users.find((u) => u.email === email)
+    if (user && user.securityAnswer && user.securityAnswer.toLowerCase() === answer.toLowerCase()) {
+      return { success: true }
+    }
+    return { success: false, error: "Incorrect answer" }
+  },
+
+  resetPassword: async (email: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    // Simulate API call to reset password
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    const userIndex = users.findIndex((u) => u.email === email)
+    if (userIndex !== -1) {
+      users[userIndex].password = newPassword
+      return { success: true }
+    }
+    return { success: false, error: "User not found" }
+  },
+
+  setSecurityQuestion: async (
+    email: string,
+    question: string,
+    answer: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const userIndex = users.findIndex((u) => u.email === email)
+    if (userIndex !== -1) {
+      users[userIndex].securityQuestion = question
+      users[userIndex].securityAnswer = answer
+      return { success: true }
+    }
+    return { success: false, error: "User not found" }
   },
 }
 
