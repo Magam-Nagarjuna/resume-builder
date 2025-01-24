@@ -400,12 +400,12 @@ export const exampleTemplates = {
 }
 
 export const designTemplates = [
-  { value: "default", label: "Default" },
-  { value: "modern", label: "Modern" },
-  { value: "creative-vertical", label: "Creative Vertical" },
-  { value: "creative-horizontal", label: "Creative Horizontal" },
-  { value: "minimalist", label: "Minimalist" },
-  { value: "infographic", label: "Infographic" },
-  { value: "timeline", label: "Timeline" },
+  { value: "default", label: "Default", primaryColor: "#000000", secondaryColor: "#ffffff" },
+  { value: "modern", label: "Modern", primaryColor: "#2c3e50", secondaryColor: "#ecf0f1" },
+  { value: "creative-vertical", label: "Creative Vertical", primaryColor: "#e74c3c", secondaryColor: "#ffffff" },
+  { value: "creative-horizontal", label: "Creative Horizontal", primaryColor: "#3498db", secondaryColor: "#ffffff" },
+  { value: "minimalist", label: "Minimalist", primaryColor: "#34495e", secondaryColor: "#bdc3c7" },
+  { value: "infographic", label: "Infographic", primaryColor: "#27ae60", secondaryColor: "#f1c40f" },
+  { value: "timeline", label: "Timeline", primaryColor: "#8e44ad", secondaryColor: "#ecf0f1" },
 ]
 
