@@ -1,5 +1,6 @@
-import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import { jsPDF } from "jspdf"
+import "jspdf-autotable"
+import { designTemplates } from "@/lib/example-templates"
 
 type StyleOptions = {
   font: string
@@ -17,119 +18,141 @@ export const generatePDF = (
   uploadedImage: string | null,
   designTemplate: string,
 ) => {
-  console.log("Starting generatePDF function");
-  const margin = 40
+  // Set page size to A4
+  const pageWidth = doc.internal.pageSize.width
+  const pageHeight = doc.internal.pageSize.height
+  const margin = 20
   let yPos = margin
 
-  // Set font and styles
-  doc.setFont(styleOptions.font)
-  doc.setFontSize(Number(styleOptions.fontSize))
+  // Get template colors
+  const template = designTemplates.find((t) => t.value === designTemplate) || designTemplates[0]
+  const primaryColor = template.primaryColor || "#000000"
+  const secondaryColor = template.secondaryColor || "#ffffff"
 
-  const setStyle = () => {
-    let style = ""
-    if (styleOptions.bold) style += "bold"
-    if (styleOptions.italic) style += "italic"
+  // Set font and styles
+  const fontName = styleOptions.font.split(",")[0].trim().toLowerCase()
+  const supportedFonts = ["helvetica", "times", "courier"]
+  const font = supportedFonts.includes(fontName) ? fontName : "helvetica"
+  const fontSize = Number.parseInt(styleOptions.fontSize)
+  doc.setFont(font)
+  doc.setFontSize(fontSize)
+
+  // Helper function to set text style
+  const setStyle = (color = "#000000", size = fontSize) => {
+    let style = "normal"
+    if (styleOptions.bold && styleOptions.italic) style = "bolditalic"
+    else if (styleOptions.bold) style = "bold"
+    else if (styleOptions.italic) style = "italic"
+    doc.setFont(font, style)
+    doc.setTextColor(color)
     if (styleOptions.underline) {
-      doc.setTextColor(0, 0, 255)
-      doc.setDrawColor(0, 0, 255)
-    } else {
-      doc.setTextColor(0)
-      doc.setDrawColor(0)
+      //const textWidth = doc.getTextWidth(text); //text is not defined here.  This line is problematic.
+      //doc.line(x, y + 2, x + textWidth, y + 2); //x and y are not defined here. This line is problematic.
     }
-    doc.setFont(styleOptions.font, style)
   }
 
-  // Add profile picture if uploaded
+  // Add header background
+  doc.setFillColor(primaryColor)
+  doc.rect(0, 0, pageWidth, 60, "F")
+
+  // Add profile picture if available
   if (uploadedImage) {
-    doc.addImage(uploadedImage, "JPEG", margin, yPos, 60, 60)
-    yPos += 70
+    try {
+      doc.addImage(uploadedImage, "JPEG", margin, margin, 40, 40)
+
+      // Add circular clipping (approximate with white border)
+      doc.setFillColor(255, 255, 255)
+      doc.circle(margin + 20, margin + 20, 21, "S")
+    } catch (error) {
+      console.error("Error adding image to PDF:", error)
+    }
   }
 
   // Add name
-  doc.setFontSize(Number(styleOptions.fontSize) + 8)
-  setStyle()
-  doc.text(formData.fullName, margin, yPos)
-  yPos += 20
+  yPos = margin + 15
+  setStyle("#ffffff", fontSize + 8)
+  doc.text(formData.fullName, uploadedImage ? margin + 50 : margin, yPos)
 
   // Add contact info
-  doc.setFontSize(Number(styleOptions.fontSize))
-  setStyle()
-  doc.text(`${formData.email} | ${formData.phone}`, margin, yPos)
-  yPos += 20
+  yPos += 10
+  setStyle("#ffffff", fontSize)
+  doc.text(`${formData.email} • ${formData.phone}`, uploadedImage ? margin + 50 : margin, yPos)
 
-  // Add summary
-  doc.setFontSize(Number(styleOptions.fontSize) + 2)
-  doc.setFont(styleOptions.font, "bold")
-  doc.text("Professional Summary", margin, yPos)
-  yPos += 15
-  doc.setFontSize(Number(styleOptions.fontSize))
-  setStyle()
-  const summaryLines = doc.splitTextToSize(formData.summary, doc.internal.pageSize.width - 2 * margin)
-  doc.text(summaryLines, margin, yPos)
-  yPos += summaryLines.length * (Number(styleOptions.fontSize) * 1.2) + 10
+  // Reset position after header
+  yPos = 80
 
   // Add sections
-  sections.forEach((section) => {
+  const addSection = (title: string, content: string[]) => {
     // Section title
-    doc.setFontSize(Number(styleOptions.fontSize) + 2)
-    doc.setFont(styleOptions.font, "bold")
-    doc.text(section.title, margin, yPos)
-    yPos += 15
+    setStyle(primaryColor, fontSize + 2)
+    doc.text(title, margin, yPos)
+    yPos += 10
 
     // Section content
-    doc.setFontSize(Number(styleOptions.fontSize))
-    setStyle()
-    section.content.forEach((item) => {
-      const itemLines = doc.splitTextToSize(item, doc.internal.pageSize.width - 2 * margin - 10)
-      doc.text("•", margin, yPos)
-      doc.text(itemLines, margin + 10, yPos)
-      yPos += itemLines.length * (Number(styleOptions.fontSize) * 1.2) + 5
+    setStyle("#000000", fontSize)
+    content.forEach((item) => {
+      // Handle bullet points
+      if (item.trim().startsWith("•")) {
+        const bulletText = item.trim()
+        const lines = doc.splitTextToSize(bulletText, pageWidth - (2 * margin + 10))
+        lines.forEach((line: string) => {
+          doc.text(line, margin, yPos)
+          yPos += 7
+        })
+      } else {
+        const lines = doc.splitTextToSize(item, pageWidth - 2 * margin)
+        lines.forEach((line: string) => {
+          doc.text(line, margin, yPos)
+          yPos += 7
+        })
+      }
+
+      // Add spacing between items
+      yPos += 3
+
+      // Check if we need a new page
+      if (yPos > pageHeight - margin) {
+        doc.addPage()
+        yPos = margin
+      }
     })
 
+    // Add spacing between sections
     yPos += 10
+  }
+
+  // Add professional summary
+  addSection("Professional Summary", [formData.summary])
+
+  // Add other sections
+  sections.forEach((section) => {
+    addSection(section.title, section.content)
   })
 
-  if (styleOptions.underline) {
-    doc.line(margin, yPos, doc.internal.pageSize.width - margin, yPos)
+  // Add page numbers
+  const totalPages = doc.internal.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    doc.setFontSize(10)
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: "center" })
   }
-
-  // Apply design template specific modifications
-  switch (designTemplate) {
-    case "modern":
-      doc.setDrawColor(200, 200, 200)
-      doc.setFillColor(240, 240, 240)
-      doc.rect(0, 0, doc.internal.pageSize.width, 100, "F")
-      break
-    case "creative-vertical":
-      doc.setDrawColor(50, 50, 50)
-      doc.setFillColor(50, 50, 50)
-      doc.rect(0, 0, doc.internal.pageSize.width / 3, doc.internal.pageSize.height, "F")
-      break
-    case "creative-horizontal":
-      doc.setDrawColor(50, 50, 50)
-      doc.setFillColor(50, 50, 50)
-      doc.rect(0, 0, doc.internal.pageSize.width, 100, "F")
-      break
-    default:
-      // Default template, no additional modifications
-      break
-  }
-
-  console.log("Finished generating PDF");
 }
 
-export const downloadPDF = (resumeData: any) => {
-  console.log("Starting downloadPDF function");
+export const downloadPDF = async (resumeData: any) => {
   const doc = new jsPDF()
-  generatePDF(
-    doc,
-    resumeData.formData,
-    resumeData.sections,
-    resumeData.styleOptions,
-    resumeData.uploadedImage,
-    resumeData.designTemplate,
-  )
-  console.log("Finished generating PDF");
-  doc.save("resume.pdf")
-  console.log("Saved PDF");
+  try {
+    generatePDF(
+      doc,
+      resumeData.formData,
+      resumeData.sections,
+      resumeData.styleOptions,
+      resumeData.uploadedImage,
+      resumeData.designTemplate,
+    )
+    doc.save("resume.pdf")
+  } catch (error) {
+    console.error("Error generating PDF:", error)
+    throw error
+  }
 }
+
