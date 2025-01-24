@@ -6,14 +6,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Download, Save, Loader2, Plus, Trash, Bold, Italic, Underline, Eye, EyeOff } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Download, Save, Loader2, Plus, Trash, Bold, Italic, Underline, Eye, EyeOff, Sparkles } from "lucide-react"
 import { jsPDF } from "jspdf"
+import "jspdf-autotable"
 import { LoggedInHeader } from "@/components/logged-in-header"
 import { auth } from "@/lib/auth"
+import { AISuggestions } from "@/components/ai-suggestions"
+import { generatePDF, downloadPDF } from "@/lib/pdf"
+import { DefaultTemplate } from "@/components/resume-templates/default-template"
+import { ModernTemplate } from "@/components/resume-templates/modern-template"
+import { CreativeVerticalTemplate } from "@/components/resume-templates/creative-vertical-template"
+import { CreativeHorizontalTemplate } from "@/components/resume-templates/creative-horizontal-template"
+import { MinimalistTemplate } from "@/components/resume-templates/minimalist-template"
+import { InfographicTemplate } from "@/components/resume-templates/infographic-template"
+import { TimelineTemplate } from "@/components/resume-templates/timeline-template"
 
 type Section = {
   id: string
@@ -30,14 +41,32 @@ type StyleOptions = {
 }
 
 const fontOptions = [
-  { value: "Arial, sans-serif", label: "Arial" },
-  { value: "Helvetica, sans-serif", label: "Helvetica" },
-  { value: "Georgia, serif", label: "Georgia" },
-  { value: "Times New Roman, serif", label: "Times New Roman" },
-  { value: "Courier New, monospace", label: "Courier New" },
+  { value: "helvetica", label: "Helvetica" },
+  { value: "times", label: "Times" },
+  { value: "courier", label: "Courier" },
 ]
 
 const fontSizeOptions = ["12px", "14px", "16px", "18px", "20px", "24px"]
+
+const resumeTypes = [
+  { value: "default", label: "Default" },
+  { value: "student-resume", label: "Student Resume" },
+  { value: "software-engineer", label: "Software Engineer" },
+  { value: "marketing-specialist", label: "Marketing Specialist" },
+  { value: "data-scientist", label: "Data Scientist" },
+  { value: "ux-designer", label: "UX Designer" },
+  { value: "project-manager", label: "Project Manager" },
+]
+
+const designTemplates = [
+  { value: "default", label: "Default" },
+  { value: "modern", label: "Modern" },
+  { value: "creative-vertical", label: "Creative Vertical" },
+  { value: "creative-horizontal", label: "Creative Horizontal" },
+  { value: "minimalist", label: "Minimalist" },
+  { value: "infographic", label: "Infographic" },
+  { value: "timeline", label: "Timeline" },
+]
 
 export default function EditorPage({ params }: { params: { templateId: string } }) {
   const router = useRouter()
@@ -58,13 +87,20 @@ export default function EditorPage({ params }: { params: { templateId: string } 
     { id: "projects", title: "Projects", content: [""] },
   ])
   const [styleOptions, setStyleOptions] = useState<StyleOptions>({
-    font: "Arial, sans-serif",
+    font: "helvetica",
     fontSize: "16px",
     bold: false,
     italic: false,
     underline: false,
   })
   const [showPreview, setShowPreview] = useState(false)
+  const [showAISuggestions, setShowAISuggestions] = useState(false)
+  const [resumeProgress, setResumeProgress] = useState(0)
+  const [templateData, setTemplateData] = useState<any>(null)
+  const [resumeType, setResumeType] = useState<string>("default")
+  const [designTemplate, setDesignTemplate] = useState<string>("default")
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   useEffect(() => {
     const loadTemplate = async () => {
@@ -73,35 +109,40 @@ export default function EditorPage({ params }: { params: { templateId: string } 
         const currentUser = await auth.getCurrentUser()
         setUser(currentUser)
 
-        const savedResumes = await auth.getSavedResumes()
-        const savedResume = savedResumes.find((resume) => resume.id === params.templateId)
-
-        if (savedResume) {
-          setFormData(savedResume.content.formData)
-          setSections(savedResume.content.sections)
-          setStyleOptions(savedResume.content.styleOptions || styleOptions)
+        if (params.templateId !== "new") {
+          const savedResume = await auth.getResumeById(params.templateId)
+          if (savedResume) {
+            setFormData(savedResume.content.formData)
+            setSections(savedResume.content.sections)
+            setStyleOptions(savedResume.content.styleOptions)
+            setResumeType(savedResume.resumeType || "default")
+            setDesignTemplate(savedResume.designTemplate || "default")
+            setUploadedImage(savedResume.content.uploadedImage || null)
+          }
         } else {
-          // Set default data if no saved resume is found
+          // Set default values for new resume
           setFormData({
             fullName: "John Doe",
-            email: "john@example.com",
-            phone: "(555) 123-4567",
-            summary: "Experienced professional with a passion for innovation.",
+            email: "johndoe@example.com",
+            phone: "123-456-7890",
+            summary: "Highly motivated and experienced professional with a strong passion for delivering results.",
           })
           setSections([
             {
               id: "experience",
               title: "Work Experience",
-              content: ["Senior Developer at Tech Co.", "- Led team of 5 developers", "- Implemented new features"],
+              content: ["Position at Company A (2020-Present)", "Position at Company B (2018-2020)"],
             },
+            { id: "education", title: "Education", content: ["Degree in Field, University Name (2014-2018)"] },
+            { id: "skills", title: "Skills", content: ["Skill 1", "Skill 2", "Skill 3"] },
             {
-              id: "education",
-              title: "Education",
-              content: ["Bachelor of Science in Computer Science", "University of Technology, 2015-2019"],
+              id: "projects",
+              title: "Projects",
+              content: ["Project A: Description of project A", "Project B: Description of project B"],
             },
-            { id: "skills", title: "Skills", content: ["JavaScript", "React", "Node.js", "Python", "SQL"] },
-            { id: "projects", title: "Projects", content: ["Personal Portfolio Website", "E-commerce Platform"] },
           ])
+          setResumeType("default")
+          setDesignTemplate("default")
         }
       } catch (error) {
         console.error("Error loading template:", error)
@@ -114,19 +155,35 @@ export default function EditorPage({ params }: { params: { templateId: string } 
     loadTemplate()
   }, [params.templateId, router])
 
+  const updateResumeProgress = () => {
+    const totalFields =
+      Object.keys(formData).length + sections.reduce((acc, section) => acc + section.content.length, 0)
+    const filledFields =
+      Object.values(formData).filter(Boolean).length +
+      sections.reduce((acc, section) => acc + section.content.filter(Boolean).length, 0)
+    const progress = Math.round((filledFields / totalFields) * 100)
+    setResumeProgress(progress)
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev) => {
+      const newFormData = { ...prev, [name]: value }
+      updateResumeProgress()
+      return newFormData
+    })
   }
 
   const handleSectionChange = (id: string, index: number, value: string) => {
-    setSections((prev) =>
-      prev.map((section) =>
+    setSections((prev) => {
+      const newSections = prev.map((section) =>
         section.id === id
           ? { ...section, content: section.content.map((item, i) => (i === index ? value : item)) }
           : section,
-      ),
-    )
+      )
+      updateResumeProgress()
+      return newSections
+    })
   }
 
   const handleAddField = (id: string) => {
@@ -162,13 +219,17 @@ export default function EditorPage({ params }: { params: { templateId: string } 
     setIsSaving(true)
     try {
       const resumeData = {
-        id: params.templateId,
-        title: formData.fullName + "'s Resume",
+        id: params.templateId === "new" ? `resume-${Date.now()}` : params.templateId,
+        title: formData.fullName ? `${formData.fullName}'s Resume` : "Untitled Resume",
         lastModified: new Date().toISOString(),
-        content: { formData, sections, styleOptions },
+        content: { formData, sections, styleOptions, uploadedImage },
+        progress: resumeProgress,
+        resumeType,
+        designTemplate,
       }
       await auth.saveResume(resumeData)
       console.log("Saved:", resumeData)
+      router.push("/dashboard")
     } catch (error) {
       console.error("Error saving template:", error)
     } finally {
@@ -176,38 +237,24 @@ export default function EditorPage({ params }: { params: { templateId: string } 
     }
   }
 
-  const handleDownload = () => {
-    const doc = new jsPDF()
-
-    // Add content to PDF
-    doc.setFontSize(20)
-    doc.text(formData.fullName, 20, 20)
-
-    doc.setFontSize(12)
-    doc.text(`Email: ${formData.email}`, 20, 30)
-    doc.text(`Phone: ${formData.phone}`, 20, 35)
-
-    doc.setFontSize(16)
-    doc.text("Summary", 20, 45)
-    doc.setFontSize(12)
-    doc.text(formData.summary, 20, 55)
-
-    let yOffset = 70
-    sections.forEach((section) => {
-      doc.setFontSize(16)
-      doc.text(section.title, 20, yOffset)
-      yOffset += 10
-      doc.line(20, yOffset, 190, yOffset) // Add underline
-      yOffset += 5
-      doc.setFontSize(12)
-      section.content.forEach((item, index) => {
-        doc.text(`${index + 1}. ${item}`, 25, yOffset)
-        yOffset += 7
-      })
-      yOffset += 10
-    })
-
-    doc.save("resume.pdf")
+  const handleDownload = async () => {
+    setIsDownloading(true)
+    try {
+      const resumeData = {
+        formData,
+        sections,
+        styleOptions,
+        uploadedImage,
+        designTemplate,
+      }
+      await downloadPDF(resumeData)
+    } catch (error) {
+      console.error("Error downloading PDF:", error)
+      // Show an error message to the user
+      alert("An error occurred while downloading the PDF. Please try again.")
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   if (isLoading) {
@@ -223,16 +270,146 @@ export default function EditorPage({ params }: { params: { templateId: string } 
     return null
   }
 
+  const renderTemplate = () => {
+    switch (designTemplate) {
+      case "modern":
+        return (
+          <ModernTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+      case "creative-vertical":
+        return (
+          <CreativeVerticalTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+      case "creative-horizontal":
+        return (
+          <CreativeHorizontalTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+      case "minimalist":
+        return (
+          <MinimalistTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+      case "infographic":
+        return (
+          <InfographicTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+      case "timeline":
+        return (
+          <TimelineTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+      default:
+        return (
+          <DefaultTemplate
+            formData={formData}
+            sections={sections}
+            styleOptions={styleOptions}
+            uploadedImage={uploadedImage}
+          />
+        )
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <LoggedInHeader user={user} />
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 space-y-4 md:space-y-0">
-          <h1 className="text-3xl font-bold">Edit Resume</h1>
-          <div className="flex flex-wrap gap-4">
-            <Button variant="outline" onClick={handleDownload}>
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
+          <h1 className="text-3xl font-bold">{params.templateId === "new" ? "Create New Resume" : "Edit Resume"}</h1>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="mb-4 space-y-2">
+              <h3 className="font-semibold">Resume Options</h3>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="resume-type">Type:</Label>
+                  <Select value={resumeType} onValueChange={setResumeType}>
+                    <SelectTrigger id="resume-type" className="w-[180px]">
+                      <SelectValue placeholder="Select resume type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {resumeTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="design-template">Design:</Label>
+                  <Select value={designTemplate} onValueChange={setDesignTemplate}>
+                    <SelectTrigger id="design-template" className="w-[180px]">
+                      <SelectValue placeholder="Select design template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {designTemplates.map((template) => (
+                        <SelectItem key={template.value} value={template.value}>
+                          {template.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="image-upload">Upload Profile Picture:</Label>
+              <Input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    const reader = new FileReader()
+                    reader.onloadend = () => {
+                      setUploadedImage(reader.result as string)
+                    }
+                    reader.readAsDataURL(file)
+                  }
+                }}
+              />
+            </div>
+            <Button variant="outline" onClick={handleDownload} disabled={isDownloading}>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </>
+              )}
             </Button>
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving ? (
@@ -395,37 +572,30 @@ export default function EditorPage({ params }: { params: { templateId: string } 
           </Card>
 
           <div className={`bg-white rounded-lg shadow-lg p-8 ${showPreview ? "block" : "hidden md:block"}`}>
-            <div
-              className="prose max-w-none"
-              style={{
-                fontFamily: styleOptions.font,
-                fontSize: styleOptions.fontSize,
-                fontWeight: styleOptions.bold ? "bold" : "normal",
-                fontStyle: styleOptions.italic ? "italic" : "normal",
-                textDecoration: styleOptions.underline ? "underline" : "none",
-              }}
-            >
-              <h1>{formData.fullName}</h1>
-              <p>
-                {formData.email} • {formData.phone}
-              </p>
-
-              <h2>Professional Summary</h2>
-              <p>{formData.summary}</p>
-
-              {sections.map((section) => (
-                <div key={section.id}>
-                  <h2>{section.title}</h2>
-                  <hr className="border-t border-gray-300 my-2" />
-                  <ol className="list-decimal list-inside">
-                    {section.content.map((item, index) => (
-                      <li key={index}>{item}</li>
-                    ))}
-                  </ol>
-                </div>
-              ))}
-            </div>
+            {renderTemplate()}
           </div>
+        </div>
+
+        <div className="mt-8">
+          <Button onClick={() => setShowAISuggestions(!showAISuggestions)}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            {showAISuggestions ? "Hide AI Suggestions" : "Show AI Suggestions"}
+          </Button>
+          {showAISuggestions && (
+            <AISuggestions
+              formData={formData}
+              sections={sections}
+              resumeType={resumeType}
+              onApplySuggestion={(field, value) => {
+                if (field in formData) {
+                  setFormData((prev) => ({ ...prev, [field]: value }))
+                } else {
+                  const [sectionId, index] = field.split(".")
+                  handleSectionChange(sectionId, Number.parseInt(index), value)
+                }
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
