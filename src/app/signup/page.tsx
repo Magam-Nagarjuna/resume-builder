@@ -41,7 +41,7 @@ export default function SignUpPage() {
     try {
       const result = await auth.signup(formData.name, formData.email, formData.password)
       if (result.success) {
-        router.push("/dashboard")
+        router.push("/setup-security")
       } else {
         setError(result.error || "An error occurred during signup")
       }
